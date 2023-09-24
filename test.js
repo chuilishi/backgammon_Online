@@ -1,3 +1,2 @@
-setInterval(() => {
-    console.log("aaa");
-}, 300);
+ws = new WebSocket("ws://localhost:9000")
+ws.send(a)

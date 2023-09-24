@@ -3,28 +3,21 @@
 import asyncio
 import json
 import secrets
+import time
+
 import websockets
+from Game import Game
+from Game import GameState
+from typing import Dict
+games :Dict[str,Game] = {}
 
-player1 = None
-player2 = None
+def printConnect(websocket):
+    print(f"State: {websocket.state}")
+    print(f"Is open?: {websocket.open}")
+    print(f"Is closed?: {websocket.closed}")
+    print(f"Close code: {websocket.close_code}")
+    print(f"Close reason: {websocket.close_reason}")
 
-JOIN = {}
-WATCH = {}
-
-class Board:
-    def __init__(self):
-        self.saveWhiteID = []
-        self.saveBlackID = []
-        self.moves = []
-        self.player = 0
-    def play(self,player,id):
-        if(self.player!=player):
-            raise RuntimeError("不是你的回合")
-        self.moves.append((player,id))
-        self.player = 0 if self.player==1 else 1
-
-    def clear(self):
-        self.moves.clear()
 
 async def error(websocket, message):
     event = {
@@ -32,7 +25,6 @@ async def error(websocket, message):
         "message": message,
     }
     await websocket.send(json.dumps(event))
-
 async def replay(websocket, game):
     for player, id in game.moves.copy():
         event = {
@@ -41,125 +33,95 @@ async def replay(websocket, game):
             "id":id
         }
         await websocket.send(json.dumps(event))
+async def win(roomId:str,player):
+    game = games[roomId]
+    event = {
+        "type":"win",
+        "player":player
+    }
+    websockets.broadcast(set(game.connected),json.dumps(event))
+    game.state = GameState.WaitForBegin
+    game.clear()
 
-
-async def play(websocket, game, player, connected):
+async def play(websocket, roomId, player):
+    game = games[roomId]
+    event = {
+        "type": "init",
+        "roomId":roomId,
+        "player": player
+    }
+    websockets.broadcast(game.connected,json.dumps(event))
     async for message in websocket:
         event = json.loads(message)
-        assert event["type"] == "play"
-        id = event["id"]
-        try:
-            game.play(player, id)
-        except RuntimeError as exc:
-            await error(websocket, str(exc))
-            continue
-
-        # Send a "play" event to update the UI.
-        event = {
-            "type": "play",
-            "player": player,
-            "id": id
-        }
-        websockets.broadcast(connected, json.dumps(event))
-        # If move is winning, send a "win" event.
-        if game.winner is not None:
+        if event.get("type")=="play":
+            if event.get("win") is not None:
+                await win(roomId,event.get("win"))
+                return
+            print(event)
+            _id = event.get("id")
             event = {
-                "type": "win",
-                "player": game.winner,
+                "type":"play",
+                "player":player,
+                "id": _id
             }
-            websockets.broadcast(connected, json.dumps(event))
+            websockets.broadcast(set(game.connected),json.dumps(event))
+            try:
+                game.play(player, _id)
+            except RuntimeError as exc:
+                await error(websocket, str(exc))
+                continue
 
+            event = {
+                "type": "play",
+                "player": player,
+                "id": _id
+            }
+            websockets.broadcast(set(game.connected), json.dumps(event))
+        elif event.get("type")== "chooseSide":
+            websockets.broadcast(set(game.connected), json.dumps(event))
+        elif event.get("type")== "start":
+            if game.ready is True:
+                websockets.broadcast(set(game.connected), json.dumps(event))
+                game.ready = False
+            else:
+                game.ready = True
+                event = {
+                    "type":"start",
+                    "player":player
+                }
+                websockets.broadcast(set(game.connected), json.dumps(event))
 
-async def start(websocket,player):
-    print("start")
-    global player1
-    global player2
-    game = Board()
-    connected = {websocket}
-
-    join_key = secrets.token_urlsafe(12)
-    JOIN[join_key] = game, connected
-
-    watch_key = secrets.token_urlsafe(12)
-    WATCH[watch_key] = game, connected
-
-    player1 = player
-    player2 = 0 if player1==1 else 1
-
-    try:
-        event = {
-            "type": "init",
-            "join": join_key,
-            "watch": watch_key,
-        }
-        await websocket.send(json.dumps(event))
-        await play(websocket, game, player1, connected)
-    finally:
-        del JOIN[join_key]
-        del WATCH[watch_key]
-
-async def join(websocket, join_key):
-    print("join")
-    try:
-        game, connected = JOIN[join_key]
-    except KeyError:
-        await error(websocket, "Game not found.")
-        return
-
-    # Register to receive moves from this game.
-    connected.add(websocket)
-    try:
-        # Send the first move, in case the first player already played it.
-        await replay(websocket, game)
-        # Receive and process moves from the second player.
-        await play(websocket, game, player2, connected)
-    finally:
-        connected.remove(websocket)
-
-
-async def watch(websocket, watch_key):
-    """
-    Handle a connection from a spectator: watch an existing game.
-
-    """
-    # Find the Connect Four game.
-    try:
-        game, connected = WATCH[watch_key]
-    except KeyError:
-        await error(websocket, "Game not found.")
-        return
-
-    # Register to receive moves from this game.
-    connected.add(websocket)
-    try:
-        # Send previous moves, in case the game already started.
-        await replay(websocket, game)
-        # Keep the connection open, but don't receive any messages.
-        await websocket.wait_closed()
-    finally:
-        connected.remove(websocket)
-
+async def watch(websocket,game:Game):
+    await replay(websocket, game)
 
 async def handler(websocket):
     print("连接")
-    message = await websocket.recv()
-    event = json.loads(message)
-    assert event["type"] == "init"
-    if "join" in event:
-        # Second player joins an existing game.
-        await join(websocket, event["join"])
-    elif "watch" in event:
-        # Spectator watches an existing game.
-        await watch(websocket, event["watch"])
-    else:
-        # First player starts a new game.
-        await start(websocket,event["player"])
-
+    try:
+        message = await websocket.recv()
+        event = json.loads(message)
+        print(event)
+        if event.get("roomId") != "":
+            game = games[event.get("roomId")]
+            game.connected.append(websocket)
+            if game.state == GameState.WaitForPlayer:
+                game.state = GameState.WaitForBegin
+                await play(websocket, game.roomId, 1)
+        else:
+            print("玩家1")
+            game = Game()
+            game.roomId = secrets.token_urlsafe(12)
+            game.connected = [websocket]
+            games[game.roomId] = game
+            await play(websocket, game.roomId, 0)
+    except websockets.ConnectionClosedOK as e:
+        print(str(e))
+    except Exception as e:
+        print(str(e))
+        await error(websocket,str(e))
 
 async def main():
     async with websockets.serve(handler, "", 8001):
         await asyncio.Future()  # run forever
-
 
 if __name__ == "__main__":
     asyncio.run(main())

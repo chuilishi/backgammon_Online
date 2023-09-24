@@ -10,20 +10,23 @@
 <body>
 <div class="main">
     <div class="tip">
-        <h4>欢迎来到该五子棋游戏</h4>
+        <h4>欢迎来到五子棋游戏</h4>
         <div id="connectInfo"></div>
         <div class="check">
             <p>点击下图案选择先行棋子:<span id="checkColor">暂未选择</span></p>
-            <div class="blackPut" onclick="selctAdvanceColor(1)"></div>
-            <div class="whitePut" onclick="selctAdvanceColor(0)"></div>
+            <div class="blackPut" onclick="chooseSide(1)"></div>
+            <div class="whitePut" onclick="chooseSide(0)"></div>
         </div>
     </div>
     <div class="canvas"></div>
-    
-    <button onclick="repentChess()" class="repentButton">悔棋</button>
-    <button onclick="repent()" class="repent">重开</button>
-    <a class="join" href="">房间链接</a>
-    <a class="watch" href="">观看链接</a>
+    <button onclick="start()" class="repentButton">准备</button>
+    <div class="link">
+        <a class="join" href="">房间链接</a>
+    </div>
+    <div class="link" id="state">
+        对手未上线
+    </div>
+
 </div>
 </body>
 <script src="./gobanJS.js"></script>
