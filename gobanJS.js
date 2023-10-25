@@ -19,7 +19,6 @@ function getRoomId(){
         roomId = params.get("roomId")
     }
 }
-//创建棋盘
 function createBox() {
     divElement = document.getElementsByClassName('canvas')[0]
     for (let i = 0; i < 169; i++) {
@@ -41,7 +40,6 @@ function createBox() {
         divElement.appendChild(element)
     }
 }
-//选择先行棋子
 function selectAdvanceColor(controlMath) {
     //controlMath 0-白色 1-黑色
     console.log("color="+controlMath)
@@ -51,7 +49,6 @@ function selectAdvanceColor(controlMath) {
     document.getElementsByClassName("whitePut")[0].style.pointerEvents = "none"
     saveAdvanceColor = controlMath
 }
-
 function chooseSide(controlMath) {
     //controlMath 0-白色 1-黑色
     if (websocket !== undefined) {
@@ -77,7 +74,6 @@ function satisfyDivArr(id) {
     if (id % 13 !== 1 && id % 13 !== 0)
         return [id - 14, id - 13, id - 12, id - 1, id + 1, id + 12, id + 13, id + 14]
 }
-
 //对得到的DIV进行过滤过滤
 function divArrFilter(id) {
     let divIdArr = satisfyDivArr(id)
@@ -174,7 +170,6 @@ function ergodicDirection(nextId, controlMath) {
             break
     }
 }
-
 //对过滤后的DIV进行遍历判断是否继续判断
 function findSameColorID(id) {
     let controlMath
@@ -256,7 +251,6 @@ function checkGrid(id,turn) {
         }
     }
 }
-
 function showMessage(message) {
     window.setTimeout(() => window.alert(message), 50);
 }
@@ -281,7 +275,7 @@ function messageHandler(websocket) {
                 if(player===undefined){
                     console.log(event["player"])
                     player = event["player"]
-                    if(player=="1"){
+                    if(player==="1"){
                         document.getElementById("state").innerText = "对方未准备"
                     }
                     document.querySelector(".join").href = "?roomId=" + event["roomId"]
@@ -293,7 +287,7 @@ function messageHandler(websocket) {
                 }
                 break
             case "start":
-                if(event["player"]!=player){
+                if(event["player"]!==player){
                     if(ready){
                         document.getElementById("connectInfo").innerText = "游戏开始"
                         setTimeout(()=>{
@@ -309,6 +303,7 @@ function messageHandler(websocket) {
                     }
                 }
                 break
+
             case "play":
                 checkGrid(event["id"],parseInt(event["player"]));
                 break;
@@ -325,8 +320,8 @@ function messageHandler(websocket) {
                 console.log("test")
                 break
             case "chooseSide":
-                if(event["player"]!=player&&event["side"]!=saveAdvanceColor)break
-                if(event["player"]==player&&event["side"]==saveAdvanceColor)break
+                if(event["player"]!==player&&event["side"]!==saveAdvanceColor)break
+                if(event["player"]===player&&event["side"]===saveAdvanceColor)break
                 let isAgree = prompt("对方请求换边,同意点击确认,不同意点击取消")
                 if (isAgree === true) {
                     selectAdvanceColor(1-parseInt(saveAdvanceColor))
@@ -343,7 +338,6 @@ function messageHandler(websocket) {
         }
     })
 }
-
 function closeHandler(websocket){
     addEventListener("close",(data)=>{
         alert('Onclose called' + JSON.stringify(data));
@@ -366,6 +360,7 @@ function connect(textInterval){
         document.getElementById("connectInfo").innerText = "连接成功,请将房间链接复制给好友进行对局"
     });
 }
+
 function init(websocket) {
     let event = {
         "type": "init",

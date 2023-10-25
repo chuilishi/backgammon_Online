@@ -1,13 +1,8 @@
-#!/usr/bin/env python
-
 import asyncio
 import json
 import secrets
-import time
-
 import websockets
 from Game import Game
-from Game import GameState
 from typing import Dict
 games :Dict[str,Game] = {}
 
@@ -17,8 +12,6 @@ def printConnect(websocket):
     print(f"Is closed?: {websocket.closed}")
     print(f"Close code: {websocket.close_code}")
     print(f"Close reason: {websocket.close_reason}")
-
-
 async def error(websocket, message):
     event = {
         "type": "error",
@@ -42,7 +35,6 @@ async def win(roomId:str,player):
     websockets.broadcast(set(game.connected),json.dumps(event))
     game.state = GameState.WaitForBegin
     game.clear()
-
 async def play(websocket, roomId, player):
     game = games[roomId]
     event = {
@@ -90,10 +82,8 @@ async def play(websocket, roomId, player):
                     "player":player
                 }
                 websockets.broadcast(set(game.connected), json.dumps(event))
-
 async def watch(websocket,game:Game):
     await replay(websocket, game)
-
 async def handler(websocket):
     print("连接")
     try:
@@ -103,7 +93,7 @@ async def handler(websocket):
         if event.get("roomId") != "":
             game = games[event.get("roomId")]
             game.connected.append(websocket)
-            if game.state == GameState.WaitForPlayer:
+            if game.state == GameState.OnePlayer:
                 game.state = GameState.WaitForBegin
                 await play(websocket, game.roomId, 1)
         else:
@@ -118,7 +108,6 @@ async def handler(websocket):
     except Exception as e:
         print(str(e))
         await error(websocket,str(e))
-
 async def main():
     async with websockets.serve(handler, "", 8001):
         await asyncio.Future()  # run forever
